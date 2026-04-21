@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智能钥匙借用管理系统（腾讯云 CloudBase 云端同步版）</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- 引入腾讯云 CloudBase Web SDK -->
+<script src="https://imgcache.qq.com/qcloud/cloudbase-js-sdk/1.7.1/cloudbase.full.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;padding:20px}
+.container{max-width:800px;margin:0 auto}
+.header{text-align:center;color:white;margin-bottom:30px}
+.header h1{font-size:2.5rem;margin-bottom:10px;text-shadow:2px 2px 4px rgba(0,0,0,0.2)}
+.header p{opacity:0.9;font-size:1.1rem}
+.card{background:rgba(255,255,255,0.95);backdrop-filter:blur(10px);border-radius:20px;padding:30px;margin-bottom:20px;box-shadow:0 20px 40px rgba(0,0,0,0.1);border:1px solid rgba(255,255,255,0.2)}
+.card-title{font-size:1.5rem;color:#333;margin-bottom:20px;display:flex;align-items:center;gap:10px}
+.card-title .icon{width:40px;height:40px;background:linear-gradient(135deg,#667eea,#764ba2);border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-size:1.2rem}
+.form-group{margin-bottom:20px}
+label{display:block;margin-bottom:8px;color:#555;font-weight:600;font-size:0.95rem}
+input[type="text"],input[type="tel"],textarea{width:100%;padding:14px;border:2px solid #e1e8ed;border-radius:12px;font-size:1rem;transition:all 0.3s;background:#f8f9fa}
+input:focus,textarea:focus{outline:none;border-color:#667eea;background:white;box-shadow:0 0 0 3px rgba(102,126,234,0.1)}
+textarea{resize:vertical;min-height:80px}
+.btn{width:100%;padding:16px;border:none;border-radius:12px;font-size:1.1rem;font-weight:600;cursor:pointer;transition:all 0.3s;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-primary{background:linear-gradient(135deg,#667eea,#764ba2);color:white;box-shadow:0 4px 15px rgba(102,126,234,0.4)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(102,126,234,0.6)}
+.btn-primary:disabled{opacity:0.6;cursor:not-allowed;transform:none}
+.btn-success{background:linear-gradient(135deg,#11998e,#38ef7d);color:white;box-shadow:0 4px 15px rgba(17,153,142,0.4)}
+.btn-success:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(17,153,142,0.6)}
+.btn-success:disabled{opacity:0.6;cursor:not-allowed;transform:none}
+.btn-secondary{background:linear-gradient(135deg,#f093fb,#f5576c);color:white;box-shadow:0 4px 15px rgba(240,147,251,0.4)}
+.btn-secondary:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(240,147,251,0.6)}
+.btn-export{background:linear-gradient(135deg,#4facfe,#00f2fe);color:white;box-shadow:0 4px 15px rgba(79,172,254,0.4)}
+.btn-export:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(79,172,254,0.6)}
+.btn-small{padding:10px 16px;font-size:0.9rem;width:auto;display:inline-flex}
+.qr-section{text-align:center;padding:20px}
+#qrcode{margin:20px auto;padding:20px;background:white;border-radius:16px;display:inline-block;box-shadow:0 4px 12px rgba(0,0,0,0.1)}
+.status-badge{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:20px;font-size:0.9rem;font-weight:600;margin-bottom:15px}
+.status-available{background:#d4edda;color:#155724}
+.status-borrowed{background:#fff3cd;color:#856404}
+.borrow-info{background:#f8f9fa;border-radius:12px;padding:20px;margin:20px 0;border-left:4px solid #667eea}
+.borrow-info h3{color:#333;margin-bottom:15px;font-size:1.2rem}
+.info-row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #e9ecef}
+.info-row:last-child{border-bottom:none}
+.info-label{color:#6c757d;font-weight:500}
+.info-value{color:#333;font-weight:600}
+.hidden{display:none !important}
+.camera-section{margin:20px 0}
+.photo-preview{width:100%;max-width:400px;height:300px;background:#f0f0f0;border-radius:12px;margin:0 auto 15px;display:flex;align-items:center;justify-content:center;overflow:hidden;border:2px dashed #ccc}
+.photo-preview img{width:100%;height:100%;object-fit:cover}
+.photo-preview .placeholder{color:#999;font-size:3rem}
+.history-list{max-height:400px;overflow-y:auto}
+.history-item{background:#f8f9fa;border-radius:12px;padding:15px;margin-bottom:10px;border-left:4px solid #667eea;transition:transform 0.2s}
+.history-item:hover{transform:translateX(5px)}
+.history-item.returned{border-left-color:#38ef7d;opacity:0.8}
+.history-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.history-name{font-weight:700;color:#333}
+.history-time{font-size:0.85rem;color:#6c757d}
+.history-status{display:inline-block;padding:4px 10px;border-radius:12px;font-size:0.8rem;font-weight:600}
+.status-tag-borrowed{background:#fff3cd;color:#856404}
+.status-tag-returned{background:#d4edda;color:#155724}
+.empty-state{text-align:center;padding:40px;color:#6c757d}
+.empty-state .icon{font-size:3rem;margin-bottom:15px;opacity:0.5}
+.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(100px);background:#333;color:white;padding:16px 24px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.3);opacity:0;transition:all 0.3s;z-index:1000;font-weight:500}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.error{background:#dc3545}
+.success-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:999;opacity:0;pointer-events:none;transition:opacity 0.3s}
+.success-overlay.show{opacity:1;pointer-events:auto}
+.success-modal{background:white;border-radius:20px;padding:40px;text-align:center;max-width:300px;width:90%;transform:scale(0.8);transition:transform 0.3s}
+.success-overlay.show .success-modal{transform:scale(1)}
+.success-icon{font-size:4rem;margin-bottom:15px}
+.success-title{font-size:1.5rem;color:#333;margin-bottom:10px;font-weight:700}
+.success-text{color:#666;margin-bottom:20px}
+.countdown{font-size:2rem;color:#667eea;font-weight:700}
+.storage-warning{background:#fff3cd;border:1px solid #ffc107;border-radius:12px;padding:15px;margin:15px 0;color:#856404;font-size:0.9rem}
+.storage-warning strong{display:block;margin-bottom:5px}
+.export-section{margin-top:20px;padding-top:20px;border-top:2px solid #e9ecef}
+.export-buttons{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:15px}
+.export-buttons .btn{width:auto;flex:1;min-width:120px}
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:1000;opacity:0;pointer-events:none;transition:opacity 0.3s}
+.modal-overlay.show{opacity:1;pointer-events:auto}
+.modal-content{background:white;border-radius:20px;padding:30px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;transform:scale(0.9);transition:transform 0.3s}
+.modal-overlay.show .modal-content{transform:scale(1)}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:15px;border-bottom:2px solid #e9ecef}
+.modal-title{font-size:1.3rem;font-weight:700;color:#333}
+.modal-close{background:none;border:none;font-size:1.5rem;cursor:pointer;color:#999;padding:0;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:50%;transition:all 0.2s}
+.modal-close:hover{background:#f0f0f0;color:#333}
+.preview-table{width:100%;border-collapse:collapse;font-size:0.85rem}
+.preview-table th,.preview-table td{padding:10px;text-align:left;border-bottom:1px solid #e9ecef}
+.preview-table th{background:#f8f9fa;font-weight:600;color:#555;position:sticky;top:0}
+.preview-table tr:hover{background:#f8f9fa}
+.preview-table td{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.modal-footer{display:flex;gap:10px;margin-top:20px;padding-top:15px;border-top:2px solid #e9ecef;justify-content:flex-end}
+.modal-footer .btn{width:auto;padding:10px 20px;font-size:0.95rem}
+.loading-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);display:flex;align-items:center;justify-content:center;z-index:2000;opacity:0;pointer-events:none;transition:opacity 0.3s}
+.loading-overlay.show{opacity:1;pointer-events:auto}
+.spinner{width:50px;height:50px;border:4px solid #f3f3f3;border-top:4px solid #667eea;border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+@media(max-width:600px){.header h1{font-size:1.8rem}.card{padding:20px}.export-buttons .btn{min-width:100px;font-size:0.85rem;padding:12px}}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header"><h1>🔑 智能钥匙借用系统</h1><p>腾讯云 CloudBase 云端同步，多设备实时共享</p></div>
+
+<div class="card" id="qrCard">
+<div class="card-title"><div class="icon">📱</div><span>钥匙二维码</span></div>
+<div class="qr-section">
+<div id="currentStatus" class="status-badge status-available"><span>●</span> 当前可借用</div>
+<div id="qrcode"></div>
+<p style="color:#666;margin-top:10px;font-size:0.9rem">请使用微信或浏览器扫描上方二维码</p>
+</div>
+</div>
+
+<div class="card hidden" id="actionCard">
+<div class="card-title"><div class="icon" id="actionIcon">📝</div><span id="actionTitle">登记借用</span></div>
+<div id="borrowForm">
+<div class="form-group"><label>借用人姓名 *</label><input type="text" id="borrowerName" placeholder="请输入您的姓名" required></div>
+<div class="form-group"><label>联系电话 *</label><input type="tel" id="borrowerPhone" placeholder="请输入手机号码" required></div>
+<div class="form-group"><label>借用事由</label><textarea id="borrowReason" placeholder="请简要说明借用原因（可选）"></textarea></div>
+<button class="btn btn-primary" id="borrowBtn" onclick="submitBorrow()"><span>✓</span> 确认借用</button>
+</div>
+<div id="borrowedInfo" class="hidden">
+<div class="borrow-info">
+<h3>🔔 当前借用信息</h3>
+<div class="info-row"><span class="info-label">借用人</span><span class="info-value" id="infoName">-</span></div>
+<div class="info-row"><span class="info-label">联系电话</span><span class="info-value" id="infoPhone">-</span></div>
+<div class="info-row"><span class="info-label">借用时间</span><span class="info-value" id="infoTime">-</span></div>
+<div class="info-row"><span class="info-label">借用事由</span><span class="info-value" id="infoReason">-</span></div>
+</div>
+<div id="returnSection">
+<div class="camera-section">
+<label>📷 归还钥匙照片（请拍摄钥匙放置位置）</label>
+<div class="photo-preview" id="photoPreview"><div class="placeholder">📷</div></div>
+<input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none">
+<button class="btn btn-primary" onclick="document.getElementById('photoInput').click()" style="margin-bottom:10px"><span>📸</span> 拍摄归还照片</button>
+</div>
+<div id="storageWarning" class="storage-warning hidden">
+<strong>⚠️ 照片较大</strong>
+<span id="storageMsg">照片将压缩后上传</span>
+</div>
+<button class="btn btn-success" id="returnBtn" onclick="submitReturn()"><span>↩</span> 确认归还</button>
+</div>
+</div>
+</div>
+
+<div class="card">
+<div class="card-title"><div class="icon">📋</div><span>借用记录</span></div>
+<div class="history-list" id="historyList">
+<div class="empty-state"><div class="icon">📭</div><p>暂无借用记录</p></div>
+</div>
+
+<div class="export-section">
+<div class="card-title" style="font-size:1.2rem;margin-bottom:15px"><div class="icon" style="width:32px;height:32px;font-size:1rem">📤</div><span>导出数据</span></div>
+<p style="color:#666;font-size:0.9rem;margin-bottom:15px">将历史记录导出为文件，方便备份和统计分析</p>
+<div class="export-buttons">
+<button class="btn btn-export btn-small" onclick="exportData('json')"><span>📄</span> JSON</button>
+<button class="btn btn-export btn-small" onclick="exportData('csv')"><span>📊</span> CSV</button>
+<button class="btn btn-export btn-small" onclick="showExportPreview()"><span>👁️</span> 预览</button>
+<button class="btn btn-secondary btn-small" onclick="clearAllData()"><span>🗑️</span> 清空</button>
+</div>
+</div>
+</div>
+</div>
+
+<div class="success-overlay" id="successOverlay">
+<div class="success-modal">
+<div class="success-icon">✅</div>
+<div class="success-title">归还成功！</div>
+<div class="success-text">钥匙已归还，感谢您的使用</div>
+<div class="countdown"><span id="countdownNum">3</span> 秒后自动返回</div>
+</div>
+</div>
+
+<div class="modal-overlay" id="exportModal">
+<div class="modal-content">
+<div class="modal-header">
+<div class="modal-title">📋 导出预览</div>
+<button class="modal-close" onclick="closeExportModal()">✕</button>
+</div>
+<div id="previewContent"></div>
+<div class="modal-footer">
+<button class="btn btn-primary btn-small" onclick="exportData('json')"><span>📄</span> 导出JSON</button>
+<button class="btn btn-export btn-small" onclick="exportData('csv')"><span>📊</span> 导出CSV</button>
+<button class="btn btn-secondary btn-small" onclick="closeExportModal()"><span>✕</span> 关闭</button>
+</div>
+</div>
+</div>
+
+<div class="loading-overlay" id="loadingOverlay">
+<div class="spinner"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ==================== 配置区域：请替换为你自己的腾讯云 CloudBase 配置 ====================
+const TCB_ENV_ID = 'key-borrow-system-d5d9p00864bd06';  // 例如：'key-borrow-system-xxx'
+// ====================================================================================
+
+let app = null;  // CloudBase 应用实例
+let db = null;   // 数据库实例
+
+let appData = {currentBorrow: null, history: []};
+let returnPhotoData = null;
+let isProcessing = false;
+const MAX_PHOTO_WIDTH = 800;
+const MAX_PHOTO_HEIGHT = 600;
+const JPEG_QUALITY = 0.6;
+
+// ==================== 初始化 CloudBase ====================
+async function initCloudBase() {
+    showLoading();
+    try {
+        // 初始化 CloudBase 应用
+        app = cloudbase.init({
+            env: TCB_ENV_ID
+        });
+        
+        // 匿名登录（Web端需要登录后才能操作数据库）
+        const auth = app.auth();
+        await auth.signInAnonymously();
+        
+        // 获取数据库实例
+        db = app.database();
+        
+        showToast('✅ 云服务连接成功');
+        
+        // 加载数据
+        await loadDataFromCloud();
+        generateQRCode();
+        checkURLParams();
+        
+    } catch (e) {
+        console.error('CloudBase 初始化失败:', e);
+        showToast('⚠️ 云服务连接失败，使用本地模式');
+        loadLocalBackup();
+        generateQRCode();
+        checkURLParams();
+    } finally {
+        hideLoading();
+    }
+}
+
+// ==================== 加载动画 ====================
+function showLoading() {
+    document.getElementById('loadingOverlay').classList.add('show');
+}
+function hideLoading() {
+    document.getElementById('loadingOverlay').classList.remove('show');
+}
+
+// ==================== 云端数据操作 ====================
+
+// 从云端加载所有记录
+async function loadDataFromCloud() {
+    if (!db) {
+        loadLocalBackup();
+        return;
+    }
+    
+    showLoading();
+    try {
+        // 查询所有记录，按借用时间倒序
+        const result = await db.collection('KeyBorrowRecords')
+            .orderBy('borrowTime', 'desc')
+            .limit(100)
+            .get();
+        
+        const records = result.data || [];
+        
+        // 转换为本地格式
+        appData.history = records.map(r => ({
+            id: r._id,  // CloudBase 使用 _id 作为文档ID
+            name: r.name,
+            phone: r.phone,
+            reason: r.reason || '',
+            borrowTime: r.borrowTime,
+            returnTime: r.returnTime || null,
+            returnPhoto: r.returnPhoto || null,
+            createdAt: r._createTime
+        }));
+        
+        // 找到当前未归还的记录
+        const activeBorrow = appData.history.find(r => !r.returnTime);
+        appData.currentBorrow = activeBorrow ? JSON.parse(JSON.stringify(activeBorrow)) : null;
+        
+        updateStatusDisplay();
+        renderHistory();
+        
+        // 同时保存本地备份
+        saveLocalBackup();
+        
+    } catch (e) {
+        console.error('云端加载失败:', e);
+        showToast('⚠️ 网络异常，使用本地缓存数据');
+        loadLocalBackup();
+    } finally {
+        hideLoading();
+    }
+}
+
+// 创建借用记录（云端）
+async function createBorrowRecord(record) {
+    if (!db) throw new Error('数据库未初始化');
+    
+    const data = {
+        name: record.name,
+        phone: record.phone,
+        reason: record.reason,
+        borrowTime: record.borrowTime,
+        returnTime: null,
+        returnPhoto: null
+    };
+    
+    const result = await db.collection('KeyBorrowRecords').add({
+        data: data
+    });
+    
+    return result._id;  // 返回云端生成的文档 ID
+}
+
+// 更新归还记录（云端）
+async function updateReturnRecord(docId, returnTime, returnPhoto) {
+    if (!db) throw new Error('数据库未初始化');
+    
+    await db.collection('KeyBorrowRecords').doc(docId).update({
+        data: {
+            returnTime: returnTime,
+            returnPhoto: returnPhoto
+        }
+    });
+}
+
+// ==================== 本地备份（降级方案）====================
+function saveLocalBackup() {
+    try {
+        localStorage.setItem('keyBorrowSystem_backup', JSON.stringify(appData));
+    } catch (e) {
+        console.error('本地备份失败:', e);
+    }
+}
+
+function loadLocalBackup() {
+    try {
+        const saved = localStorage.getItem('keyBorrowSystem_backup');
+        if (saved) {
+            appData = JSON.parse(saved);
+            updateStatusDisplay();
+            renderHistory();
+        }
+    } catch (e) {
+        console.error('本地备份加载失败:', e);
+    }
+}
+
+// ==================== 二维码 ====================
+function generateQRCode(){
+    const qrContainer = document.getElementById('qrcode');
+    qrContainer.innerHTML = '';
+    // 使用 CloudBase 分配的域名，而不是当前页面域名
+    const qrUrl = 'https://key-borrow-system-d5d9p00864bd06-1330208167.tcloudbaseapp.com';
+    new QRCode(qrContainer, {
+        text: qrUrl,
+        width: 200,
+        height: 200,
+        colorDark: '#667eea',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+    });
+}
+
+
+// ==================== 页面路由 ====================
+function checkURLParams(){
+    const params = new URLSearchParams(window.location.search);
+    if(params.get('action') === 'scan') showScanResult();
+}
+
+async function showScanResult(){
+    document.getElementById('qrCard').classList.add('hidden');
+    document.getElementById('actionCard').classList.remove('hidden');
+    
+    // 关键：扫码时强制从云端刷新数据
+    await loadDataFromCloud();
+    
+    if(appData.currentBorrow) showBorrowedState();
+    else showBorrowForm();
+}
+
+function showBorrowForm(){
+    document.getElementById('borrowForm').classList.remove('hidden');
+    document.getElementById('borrowedInfo').classList.add('hidden');
+    document.getElementById('actionTitle').textContent = '登记借用';
+    document.getElementById('actionIcon').textContent = '📝';
+}
+
+function showBorrowedState(){
+    document.getElementById('borrowForm').classList.add('hidden');
+    document.getElementById('borrowedInfo').classList.remove('hidden');
+    document.getElementById('actionTitle').textContent = '钥匙归还';
+    document.getElementById('actionIcon').textContent = '↩';
+    document.getElementById('infoName').textContent = appData.currentBorrow.name;
+    document.getElementById('infoPhone').textContent = appData.currentBorrow.phone;
+    document.getElementById('infoTime').textContent = formatTime(appData.currentBorrow.borrowTime);
+    document.getElementById('infoReason').textContent = appData.currentBorrow.reason || '未填写';
+}
+
+// ==================== 借用流程 ====================
+async function submitBorrow(){
+    if(isProcessing) return;
+    isProcessing = true;
+    document.getElementById('borrowBtn').disabled = true;
+    
+    const name = document.getElementById('borrowerName').value.trim();
+    const phone = document.getElementById('borrowerPhone').value.trim();
+    const reason = document.getElementById('borrowReason').value.trim();
+    
+    if(!name || !phone){
+        showToast('请填写完整信息');
+        isProcessing = false;
+        document.getElementById('borrowBtn').disabled = false;
+        return;
+    }
+    if(!/^1[3-9]\d{9}$/.test(phone)){
+        showToast('请输入正确的手机号码');
+        isProcessing = false;
+        document.getElementById('borrowBtn').disabled = false;
+        return;
+    }
+    
+    showLoading();
+    
+    try {
+        // 先刷新云端状态，确认钥匙是否可用
+        await loadDataFromCloud();
+        
+        if (appData.currentBorrow) {
+            showToast(`钥匙当前已被 ${appData.currentBorrow.name} 借用，请先归还`);
+            showBorrowedState(); // 显示当前借用人的信息
+            isProcessing = false;
+            document.getElementById('borrowBtn').disabled = false;
+            hideLoading();
+            return;
+        }
+        
+        // 创建云端记录
+        const borrowRecord = {
+            name: name,
+            phone: phone,
+            reason: reason,
+            borrowTime: new Date().toISOString()
+        };
+        
+        const cloudId = await createBorrowRecord(borrowRecord);
+        borrowRecord.id = cloudId;
+        
+        // 更新本地状态
+        appData.currentBorrow = JSON.parse(JSON.stringify(borrowRecord));
+        appData.history.unshift(appData.currentBorrow);
+        
+        saveLocalBackup();
+        updateStatusDisplay();
+        renderHistory();
+        
+        showToast('借用登记成功！');
+        
+        document.getElementById('borrowerName').value = '';
+        document.getElementById('borrowerPhone').value = '';
+        document.getElementById('borrowReason').value = '';
+        
+        showBorrowedState();
+        
+    } catch (e) {
+        console.error('借用失败:', e);
+        showToast('借用失败，请检查网络后重试');
+    } finally {
+        isProcessing = false;
+        document.getElementById('borrowBtn').disabled = false;
+        hideLoading();
+    }
+}
+
+// ==================== 照片处理 ====================
+function compressImage(file, callback){
+    const reader = new FileReader();
+    reader.onload = function(e){
+        const img = new Image();
+        img.onload = function(){
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            
+            if(width > MAX_PHOTO_WIDTH){
+                height = Math.round(height * MAX_PHOTO_WIDTH / width);
+                width = MAX_PHOTO_WIDTH;
+            }
+            if(height > MAX_PHOTO_HEIGHT){
+                width = Math.round(width * MAX_PHOTO_HEIGHT / height);
+                height = MAX_PHOTO_HEIGHT;
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            const compressedData = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+            callback(compressedData);
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function handlePhotoSelect(e){
+    const file = e.target.files[0];
+    if(!file) return;
+    
+    document.getElementById('photoPreview').innerHTML = '<div class="placeholder">⏳ 压缩中...</div>';
+    
+    compressImage(file, function(compressedData){
+        returnPhotoData = compressedData;
+        document.getElementById('photoPreview').innerHTML = `<img src="${returnPhotoData}" alt="归还照片">`;
+        
+        const sizeInMB = (returnPhotoData.length * 0.75) / 1024 / 1024;
+        if(sizeInMB > 0.5){
+            document.getElementById('storageWarning').classList.remove('hidden');
+            document.getElementById('storageMsg').textContent = `照片已压缩至 ${sizeInMB.toFixed(2)}MB`;
+        }
+    });
+}
+
+// ==================== 归还流程 ====================
+async function submitReturn(){
+    if(isProcessing) return;
+    
+    if(!returnPhotoData){
+        showToast('请先拍摄归还照片');
+        return;
+    }
+    
+    showLoading();
+    
+    try {
+        // 重新拉取最新状态
+        await loadDataFromCloud();
+        
+        if(!appData.currentBorrow){
+            showToast('当前没有借用记录');
+            hideLoading();
+            return;
+        }
+        
+        isProcessing = true;
+        document.getElementById('returnBtn').disabled = true;
+        
+        const cloudId = appData.currentBorrow.id;
+        const returnTime = new Date().toISOString();
+        
+        // 更新云端记录
+        await updateReturnRecord(cloudId, returnTime, returnPhotoData);
+        
+        // 更新本地状态
+        const recordIndex = appData.history.findIndex(r => r.id === cloudId);
+        if (recordIndex !== -1) {
+            appData.history[recordIndex].returnTime = returnTime;
+            appData.history[recordIndex].returnPhoto = returnPhotoData;
+        }
+        
+        appData.currentBorrow = null;
+        
+        saveLocalBackup();
+        updateStatusDisplay();
+        renderHistory();
+        
+        returnPhotoData = null;
+        document.getElementById('photoPreview').innerHTML = '<div class="placeholder">📷</div>';
+        document.getElementById('storageWarning').classList.add('hidden');
+        
+        showSuccessAndReturn();
+        
+    } catch (e) {
+        console.error('归还失败:', e);
+        showToast('归还失败，请检查网络后重试');
+    } finally {
+        isProcessing = false;
+        document.getElementById('returnBtn').disabled = false;
+        hideLoading();
+    }
+}
+
+function showSuccessAndReturn(){
+    const overlay = document.getElementById('successOverlay');
+    const countdownEl = document.getElementById('countdownNum');
+    let countdown = 3;
+    overlay.classList.add('show');
+    countdownEl.textContent = countdown;
+    const timer = setInterval(() => {
+        countdown--;
+        countdownEl.textContent = countdown;
+        if(countdown <= 0){
+            clearInterval(timer);
+            overlay.classList.remove('show');
+            returnToHome();
+        }
+    }, 1000);
+}
+
+function returnToHome(){
+    document.getElementById('actionCard').classList.add('hidden');
+    document.getElementById('qrCard').classList.remove('hidden');
+    if(window.history.replaceState){
+        const baseUrl = window.location.href.split('?')[0];
+        window.history.replaceState({}, document.title, baseUrl);
+    }
+    // 返回首页时刷新状态
+    loadDataFromCloud();
+}
+
+// ==================== 状态显示 ====================
+function updateStatusDisplay(){
+    const statusEl = document.getElementById('currentStatus');
+    if(appData.currentBorrow){
+        statusEl.className = 'status-badge status-borrowed';
+        statusEl.innerHTML = '<span>●</span> 当前已借出（' + appData.currentBorrow.name + '）';
+    } else {
+        statusEl.className = 'status-badge status-available';
+        statusEl.innerHTML = '<span>●</span> 当前可借用';
+    }
+}
+
+// ==================== 历史记录渲染 ====================
+function renderHistory(){
+    const list = document.getElementById('historyList');
+    if(appData.history.length === 0){
+        list.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>暂无借用记录</p></div>';
+        return;
+    }
+    list.innerHTML = appData.history.map(record => `
+        <div class="history-item ${record.returnTime ? 'returned' : ''}">
+            <div class="history-header">
+                <span class="history-name">${record.name}</span>
+                <span class="history-status ${record.returnTime ? 'status-tag-returned' : 'status-tag-borrowed'}">${record.returnTime ? '已归还' : '借用中'}</span>
+            </div>
+            <div class="history-time">借用：${formatTime(record.borrowTime)}${record.returnTime ? `<br>归还：${formatTime(record.returnTime)}` : ''}</div>
+            ${record.reason ? `<div style="margin-top:8px;color:#666;font-size:0.9rem">事由：${record.reason}</div>` : ''}
+            ${record.returnPhoto ? `<div style="margin-top:10px"><img src="${record.returnPhoto}" style="width:100%;max-height:150px;object-fit:cover;border-radius:8px"></div>` : ''}
+        </div>
+    `).join('');
+}
+
+// ==================== 导出功能 ====================
+function getExportData(){
+    return appData.history.map(record => ({
+        序号: record.id,
+        借用人: record.name,
+        联系电话: record.phone,
+        借用事由: record.reason || '',
+        借用时间: record.borrowTime ? new Date(record.borrowTime).toLocaleString('zh-CN') : '',
+        归还时间: record.returnTime ? new Date(record.returnTime).toLocaleString('zh-CN') : '',
+        状态: record.returnTime ? '已归还' : '借用中',
+        归还照片: record.returnPhoto ? '有' : '无',
+        时长: record.returnTime ? calculateDuration(record.borrowTime, record.returnTime) : '-'
+    }));
+}
+
+function calculateDuration(borrowTime, returnTime){
+    const diff = new Date(returnTime) - new Date(borrowTime);
+    const hours = Math.floor(diff / 3600000);
+    const minutes = Math.floor((diff % 3600000) / 60000);
+    if(hours > 0) return `${hours}小时${minutes}分钟`;
+    return `${minutes}分钟`;
+}
+
+function exportData(format){
+    const data = getExportData();
+    if(data.length === 0){
+        showToast('暂无记录可导出');
+        return;
+    }
+    
+    const timestamp = new Date().toLocaleString('zh-CN').replace(/[/:]/g, '-');
+    const filename = `钥匙借用记录_${timestamp}`;
+    
+    if(format === 'json'){
+        const jsonStr = JSON.stringify(data, null, 2);
+        downloadFile(jsonStr, `${filename}.json`, 'application/json');
+        showToast(`已导出 ${data.length} 条记录到 JSON`);
+    } else if(format === 'csv'){
+        const csv = convertToCSV(data);
+        downloadFile(csv, `${filename}.csv`, 'text/csv;charset=utf-8;');
+        showToast(`已导出 ${data.length} 条记录到 CSV`);
+    }
+}
+
+function convertToCSV(data){
+    if(data.length === 0) return '';
+    const headers = Object.keys(data[0]);
+    const csvContent = [
+        '\uFEFF' + headers.join(','),
+        ...data.map(row => headers.map(h => {
+            let cell = row[h] || '';
+            if(typeof cell === 'string' && (cell.includes(',') || cell.includes('"') || cell.includes('\n'))){
+                cell = `"${cell.replace(/"/g, '""')}"`;
+            }
+            return cell;
+        }).join(','))
+    ].join('\n');
+    return csvContent;
+}
+
+function downloadFile(content, filename, mimeType){
+    const blob = new Blob([content], {type: mimeType});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+function showExportPreview(){
+    const data = getExportData();
+    if(data.length === 0){
+        showToast('暂无记录可预览');
+        return;
+    }
+    
+    const headers = Object.keys(data[0]);
+    let html = '<table class="preview-table"><thead><tr>';
+    headers.forEach(h => html += `<th>${h}</th>`);
+    html += '</tr></thead><tbody>';
+    
+    data.slice(0, 50).forEach(row => {
+        html += '<tr>';
+        headers.forEach(h => {
+            let cell = row[h] || '-';
+            if(String(cell).length > 20) cell = String(cell).substring(0, 20) + '...';
+            html += `<td>${cell}</td>`;
+        });
+        html += '</tr>';
+    });
+    
+    html += '</tbody></table>';
+    if(data.length > 50){
+        html += `<p style="text-align:center;color:#999;margin-top:10px">... 还有 ${data.length - 50} 条记录 ...</p>`;
+    }
+    
+    document.getElementById('previewContent').innerHTML = html;
+    document.getElementById('exportModal').classList.add('show');
+}
+
+function closeExportModal(){
+    document.getElementById('exportModal').classList.remove('show');
+}
+
+// 清空数据（仅清空本地，云端保留）
+function clearAllData(){
+    if(!confirm('⚠️ 确定要清空本地显示的数据吗？云端记录不会被删除。')) return;
+    
+    appData = {currentBorrow: null, history: []};
+    localStorage.removeItem('keyBorrowSystem_backup');
+    updateStatusDisplay();
+    renderHistory();
+    showToast('本地数据已清空，刷新页面将从云端重新加载');
+}
+
+// ==================== 工具函数 ====================
+function formatTime(isoString){
+    if(!isoString) return '-';
+    const date = new Date(isoString);
+    return date.toLocaleString('zh-CN', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
+}
+
+function showToast(message){
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+// ==================== 页面初始化 ====================
+document.addEventListener('DOMContentLoaded', function(){
+    // 初始化 CloudBase
+    initCloudBase();
+    
+    document.getElementById('photoInput').addEventListener('change', handlePhotoSelect);
+});
+
+// 定期刷新（每30秒自动同步一次）
+setInterval(() => {
+    if (document.getElementById('qrCard').classList.contains('hidden') === false) {
+        // 仅在首页自动刷新
+        loadDataFromCloud();
+    }
+}, 30000);
+
+// 调试快捷键
+document.addEventListener('keydown', function(e){
+    if(e.ctrlKey && e.shiftKey && e.key === 'S') showScanResult();
+    if(e.ctrlKey && e.shiftKey && e.key === 'R') loadDataFromCloud();
+});
+</script>
+</body>
+</html>
